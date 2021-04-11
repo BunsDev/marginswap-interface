@@ -58,6 +58,7 @@ function useSwapCallArguments(
       ? getMarginRouterContract(chainId, library, account)
       : getSpotRouterContract(chainId, library, account)
 
+    console.log(`Sending swap transaction to  ${contract.address}, ${marginTrade}`)
     if (!contract) {
       return []
     }
@@ -84,7 +85,11 @@ export function useSwapCallback(
   marginTrade: boolean,
   allowedSlippage: number = INITIAL_ALLOWED_SLIPPAGE, // in bips
   recipientAddressOrName: string | null // the ENS name or address of the recipient of the trade, or null if swap should be returned to sender
-): { state: SwapCallbackState; callback: null | (() => Promise<string>); error: string | null } {
+): {
+  state: SwapCallbackState
+  callback: null | (() => Promise<string>)
+  error: ((...data: any) => void) | string | null
+} {
   const { account, chainId, library } = useActiveWeb3React()
 
   const swapCalls = useSwapCallArguments(trade, marginTrade, allowedSlippage, recipientAddressOrName)
@@ -98,7 +103,7 @@ export function useSwapCallback(
     if (!trade || !library || !account || !chainId) {
       return { state: SwapCallbackState.INVALID, callback: null, error: 'Missing dependencies' }
     }
-    if (!recipient) {
+    if (!recipient && !marginTrade) {
       if (recipientAddressOrName !== null) {
         return { state: SwapCallbackState.INVALID, callback: null, error: 'Invalid recipient' }
       } else {
@@ -115,6 +120,7 @@ export function useSwapCallback(
               parameters: { methodName, args, value },
               contract
             } = call
+
             const options = !value || isZero(value) ? {} : { value }
 
             return contract.estimateGas[methodName](...args, options)
@@ -198,7 +204,7 @@ export function useSwapCallback(
             }
           })
       },
-      error: null
+      error: console.error
     }
   }, [trade, library, account, chainId, recipient, recipientAddressOrName, swapCalls, addTransaction])
 }

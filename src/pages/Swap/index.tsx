@@ -179,7 +179,7 @@ export default function Swap() {
 
   // mark when a user has submitted an approval, reset onTokenSelection for input field
   useEffect(() => {
-    if (approval === ApprovalState.PENDING) {
+    if (approval === ApprovalState.PENDING || marginTrade) {
       setApprovalSubmitted(true)
     }
   }, [approval, approvalSubmitted])
@@ -205,8 +205,10 @@ export default function Swap() {
       return
     }
     if (!swapCallback) {
+      console.log('No real swap callbck')
       return
     }
+
     setSwapState({ attemptingTxn: true, tradeToConfirm, showConfirm, swapErrorMessage: undefined, txHash: undefined })
     swapCallback()
       .then(hash => {
@@ -229,6 +231,8 @@ export default function Swap() {
         })
       })
       .catch(error => {
+        console.log('We got an error from swap callback')
+        console.error(error)
         setSwapState({
           attemptingTxn: false,
           tradeToConfirm,
@@ -258,11 +262,12 @@ export default function Swap() {
   // show approve flow when: no error on inputs, not approved or pending, or approved in current session
   // never show if price impact is above threshold in non expert mode
   const showApproveFlow =
-    !swapInputError &&
-    (approval === ApprovalState.NOT_APPROVED ||
-      approval === ApprovalState.PENDING ||
-      (approvalSubmitted && approval === ApprovalState.APPROVED)) &&
-    !(priceImpactSeverity > 3 && !isExpertMode)
+    !marginTrade ||
+    (!swapInputError &&
+      (approval === ApprovalState.NOT_APPROVED ||
+        approval === ApprovalState.PENDING ||
+        (approvalSubmitted && approval === ApprovalState.APPROVED)) &&
+      !(priceImpactSeverity > 3 && !isExpertMode))
 
   const handleConfirmDismiss = useCallback(() => {
     setSwapState({ showConfirm: false, tradeToConfirm, attemptingTxn, swapErrorMessage, txHash })
@@ -447,16 +452,16 @@ export default function Swap() {
               <RowBetween>
                 <ButtonConfirmed
                   onClick={approveCallback}
-                  disabled={approval !== ApprovalState.NOT_APPROVED || approvalSubmitted}
+                  disabled={approval !== ApprovalState.NOT_APPROVED || approvalSubmitted || marginTrade}
                   width="48%"
-                  altDisabledStyle={approval === ApprovalState.PENDING} // show solid button while waiting
+                  altDisabledStyle={approval === ApprovalState.PENDING || marginTrade} // show solid button while waiting
                   confirmed={approval === ApprovalState.APPROVED}
                 >
                   {approval === ApprovalState.PENDING ? (
                     <AutoRow gap="6px" justify="center">
                       Approving <Loader stroke="white" />
                     </AutoRow>
-                  ) : approvalSubmitted && approval === ApprovalState.APPROVED ? (
+                  ) : (approvalSubmitted && approval === ApprovalState.APPROVED) || marginTrade ? (
                     'Approved'
                   ) : (
                     'Approve ' + currencies[Field.INPUT]?.symbol
@@ -479,7 +484,9 @@ export default function Swap() {
                   width="48%"
                   id="swap-button"
                   disabled={
-                    !isValid || approval !== ApprovalState.APPROVED || (priceImpactSeverity > 3 && !isExpertMode)
+                    !isValid ||
+                    (approval !== ApprovalState.APPROVED && !marginTrade) ||
+                    (priceImpactSeverity > 3 && !isExpertMode)
                   }
                   error={isValid && priceImpactSeverity > 2}
                 >
@@ -520,7 +527,7 @@ export default function Swap() {
             )}
             {showApproveFlow && (
               <Column style={{ marginTop: '1rem' }}>
-                <ProgressSteps steps={[approval === ApprovalState.APPROVED]} />
+                <ProgressSteps steps={[approval === ApprovalState.APPROVED || marginTrade]} />
               </Column>
             )}
             {isExpertMode && swapErrorMessage ? <SwapCallbackError error={swapErrorMessage} /> : null}
